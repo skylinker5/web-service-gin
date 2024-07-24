@@ -1,25 +1,28 @@
 package main
 
 import (
-	"net/http"
+	"log"
+	"os"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
-// album represents data about a record album.
-type album struct {
-	ID     string  `json:"id"`
-	Title  string  `json:"title"`
-	Artist string  `json:"artist"`
-	Price  float64 `json:"price"`
-}
+// Global variable
+var jwtKey []byte
 
-// albums slice to seed record album data.
-var albums = []album{
-	{ID: "1", Title: "Blue Train", Artist: "John Coltrane", Price: 56.99},
-	{ID: "2", Title: "Jeru", Artist: "Gerry Mulligan", Price: 17.99},
-	{ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
+// executed automatically by go runtime
+func init() {
+	if err := godotenv.Load(); err != nil {
+		log.Fatal("Error loading .env file")
+	}
+	key := os.Getenv("JWT_SECRET_KEY")
+	if key == "" {
+		log.Fatal("JWT_SECRET_KEY environment variable not set")
+	}
+
+	jwtKey = []byte(key)
 }
 
 func main() {
@@ -27,9 +30,10 @@ func main() {
 
 	// CORS middleware
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://localhost:5173"}                   // Update with your frontend origin(s)
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"} // Allow all HTTP methods
-	config.AllowHeaders = []string{"Origin", "Content-Type"}                  // Allow specific headers
+	config.AllowOrigins = []string{"http://localhost:5173"}                             // Update with your frontend origin(s)
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}           // Allow all HTTP methods
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"} // Allow specific headers
+	config.AllowCredentials = true                                                      // Allow cookies to be sent with requests
 
 	// Use the CORS middleware
 	router.Use(cors.New(config))
@@ -37,35 +41,13 @@ func main() {
 	router.GET("/albums", getAlbums)
 	router.GET("/albums/:id", getAlbumByID)
 	router.POST("/albums", postAlbums)
+
+	router.GET("/token", func(c *gin.Context) {
+		// Call the original handler with adapted parameters
+		generateJWTHandler(c.Writer, c.Request)
+	})
+
+	router.POST("/upload", uploadSingleFile)
+
 	router.Run("localhost:8080")
-}
-
-// handler
-func getAlbums(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, albums)
-}
-
-func postAlbums(c *gin.Context) {
-	var newAlbum album
-
-	if err := c.BindJSON(&newAlbum); err != nil {
-		return
-	}
-
-	// Add the new album to the slice.
-	albums = append(albums, newAlbum)
-	c.IndentedJSON(http.StatusCreated, newAlbum)
-}
-
-func getAlbumByID(c *gin.Context) {
-	id := c.Param("id")
-
-	for _, a := range albums {
-		if a.ID == id {
-			c.IndentedJSON(http.StatusOK, a)
-			return
-		}
-	}
-
-	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
 }

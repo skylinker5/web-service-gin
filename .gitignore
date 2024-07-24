@@ -1,0 +1,6 @@
+/main.exe
+*.dll
+glew.lib
+
+./uploaded_files
+.env
